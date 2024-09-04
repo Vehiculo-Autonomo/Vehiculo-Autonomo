@@ -8,21 +8,31 @@
 -------------------------------------------------
 */
 
-// Control de motores y dirección 
+// ------------- Motores ---------------
+
 #define pinMotor1 4  // Determina la dirección del motor
 #define pinMotor2 5  // Determina la dirección del motor
 #define enMotor 6    // Determina la fuerza del motor. Usa pwm 
 #define pinServo 8
 
-PIDLoop headingLoop(1, 0, 0, true);   // Controlador PID el servomotor (por el momento lo dejaremos como P)
+//PIDLoop controlMain(5, 0.0001, 0, false)  // Controlador PID para el motor principal. Los valores son sin carga
+PIDLoop controlServo(1, 0, 0, true);      // Controlador PID el servomotor (por el momento lo dejaremos como P)
 
-int angle_pid = 0;    // El ángulo de la línea de seguimiento. Se usa en trackLine()
+int angle_pid = 0;      // El ángulo de la línea de seguimiento. Se usa en trackLine()
 
-// Variables huskylens 
+#define velMin 50       // La velocidad mínima que se necesita para tener suficiente torque inicial
+
+int velocidad = velMin; // Un valor entre 0-255 que se manda como pwm al puente H
+signed int dvel = 5;    // La cantidad que la velocidad aumenta o disminuye en cada paso
+
+// ------------ HUSKYLENS ----------------
+
 #define crossID 1   // Ids que diferencian los diferentes objetos aprendidos por la huskylens
 #define aprilID 2
 
 HUSKYLENS huskylens;  // Crea un objeto con el cual reconoceremos a la husky
+
+// ----------- Interrupciones -------------
 
 // Variable timers 
 volatile bool banderaTimer = false;   // Al activarse la bandera se ejecutará una ronda de detección. Se activa con timer1
@@ -51,8 +61,8 @@ void setup() {
   huskylens.writeAlgorithm(ALGORITHM_LINE_TRACKING);
 
   // Motores
-  pinMode(pinMotor, OUTPUT);
-  pinMode(pinServo, OUTPUT);
+  pinMode(pinMotor1, OUTPUT);
+  pinMode(pinMotor2, OUTPUT);
 
   // PWM servo
   TCCR3A = 0;
@@ -118,6 +128,8 @@ void loop() {
       trackLine();
       trackCross();
     }
+
+    updateVel();
   }
 }
 
@@ -130,13 +142,14 @@ void loop() {
 void moveForward() {
   digitalWrite(pinMotor1, HIGH);
   digitalWrite(pinMotor2, LOW);
-  analogWrite(enMotor, HIGH);
+  velocidad = velMin;
+  dvel = 5;
 }
 
 void stopMove() {
   digitalWrite(pinMotor1, LOW);
   digitalWrite(pinMotor2, LOW);
-  analogWrite(enMotor, LOW);
+  dvel = -10;
   TCNT4 = 0;  // Reinicia el timer4
 }
 
@@ -156,9 +169,17 @@ void turnLeft() {
   banderaCross = false;
 }
 
-void servo(int angle){
+void servo(int angle) {
   // Calcula el duty cicle dependiendo de la entrada angle y manda el pwm
   analogWrite(pinServo, (int)map(angle,-90,90,12,26));
+}
+
+void updateVel() {
+  // Actualiza la velocidad del motor main y lo manda al pin enMotor
+  velocidad += dvel;
+  velocidad > 255 ? velocidad = 255;
+  velocidad < velMin ? velocidad = 0;
+  analogWrite(enMotor, velocidad);
 }
 
 /*
@@ -180,10 +201,10 @@ void trackLine() {
 
     //error = (int32_t)angle - (int32_t)160;
     error = (int32_t)angle;
-    headingLoop.update(error);
+    controlServo.update(error);
 
     //Serial.println(angle);
-    angle_pid = headingLoop.m_command;
+    angle_pid = controlServo.m_command;
     servo(angle_pid);
   }
 }
