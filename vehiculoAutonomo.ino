@@ -8,7 +8,7 @@
 -------------------------------------------------
 */
 
-// ------------- Motores ---------------
+// ----------------- MOTORES --------------------
 
 #define pinMotor1 4  // Determina la dirección del motor
 #define pinMotor2 5  // Determina la dirección del motor
@@ -25,14 +25,22 @@ int angle_pid = 0;      // El ángulo de la línea de seguimiento. Se usa en tra
 int velocidad = velMin; // Un valor entre 0-255 que se manda como pwm al puente H
 signed int dvel = 5;    // La cantidad que la velocidad aumenta o disminuye en cada paso
 
-// ------------ HUSKYLENS ----------------
+// ----------------- ENCODER --------------------
+#define pinEncoderA 2
+#define pinEncoderB 3
+
+short valorA = 0;
+short valorB = 0;  
+signed long int encoderPosition = 0;
+
+// ---------------- HUSKYLENS --------------------
 
 #define crossID 1   // Ids que diferencian los diferentes objetos aprendidos por la huskylens
 #define aprilID 2
 
 HUSKYLENS huskylens;  // Crea un objeto con el cual reconoceremos a la husky
 
-// ----------- Interrupciones -------------
+// -------------- INTERRUPCIONES -----------------
 
 // Variable timers 
 volatile bool banderaTimer = false;   // Al activarse la bandera se ejecutará una ronda de detección. Se activa con timer1
@@ -63,6 +71,10 @@ void setup() {
   // Motores
   pinMode(pinMotor1, OUTPUT);
   pinMode(pinMotor2, OUTPUT);
+
+  // Encoder
+  attachInterrupt(digitalPinToInterrupt(pinEncoderA), readEncoderA, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(pinEncoderB), readEncoderB, CHANGE);
 
   // PWM servo
   TCCR3A = 0;
@@ -180,6 +192,48 @@ void updateVel() {
   velocidad > 255 ? velocidad = 255;
   velocidad < velMin ? velocidad = 0;
   analogWrite(enMotor, velocidad);
+}
+
+/*
+-------------------------------------------------
+              FUNCIONES ENCODER
+-------------------------------------------------
+*/
+
+void readEncoderA() {
+
+  valorA = digitalRead(pinA);
+   
+  if (valorA == 1 && valorB == 1) {
+    encoderPosition++;
+  }
+  else if (valorA == 1 && valorB == 0) {
+    encoderPosition--;
+  }
+  else if (valorA == 0 && valorB == 1) {
+    encoderPosition--;
+  }
+  else if (valorA == 0 && valorB == 0) {
+    encoderPosition++;
+  }
+}
+
+void readEncoderB() {
+
+  valorB = digitalRead(pinB);
+   
+  if (valorB == 1 && valorA == 0) {
+    encoderPosition++;
+  }
+  else if (valorB == 1 && valorA == 1) {
+    encoderPosition--;
+  }
+  else if (valorB == 0 && valorA == 0) {
+    encoderPosition--;
+  }
+  else if (valorB == 0 && valorA == 1) {
+    encoderPosition++;
+  }
 }
 
 /*
