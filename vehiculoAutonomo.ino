@@ -11,21 +11,22 @@ volatile bool banderaPrograma = false;  // Muestra el tiempo que toma en ejecuta
 
 void setup() {
   
-  pinMode(3, OUTPUT);   // banderaHusky
-  pinMode(4, OUTPUT);   // banderaStop
   pinMode(5, OUTPUT);   // banderaPrograma  
+  pinMode(4, OUTPUT);   // varios
 
   // Timers
   cli();
 
     // Timer programa
     TCCR2A = 0;
+    TCCR2A |= (1 << WGM01);
     TCCR2B = 0;
-    TCNT2  = 0;
-    OCR2A = 249; // Preescaler 1024 | frecuencia 16ms | 62.5Hz
-    TCCR2B |= (1 << WGM12);
+    TCCR2B |= (1 << WGM01);
     TCCR2B |= (1 << CS12) | (1 << CS10);
+    
+    OCR2A = 249; // Preescaler 1024 | frecuencia 16ms | 62.5Hz
     TIMSK2 |= (1 << OCIE2A);
+    TCNT2  = 0;
 
   sei();
 }
@@ -38,23 +39,27 @@ void loop() {
   
   if (banderaTimer) {
     
-    banderaPrograma = true;
+    banderaPrograma = !banderaPrograma;
+    digitalWrite(5, banderaPrograma);
+    // digitalWrite(4, HIGH);
+
     banderaTimer = false;
     counterHusky += 1;
     counterStop += 1;
 
-    if (counterStop == comparador){
+    if (counterStop > comparador){
       counterStop = 0;
-      banderaStop != banderaStop;
+      banderaStop = !banderaStop;
+      // digitalWrite(4, banderaStop);
       // Ejecución parada
     }
-    else if (counterHusky == comparadorHusky) {
+    else if (counterHusky > comparadorHusky) {
       counterHusky = 0;
-      banderaHusky != banderaHusky;
+      banderaHusky = !banderaHusky;
+      // digitalWrite(4, banderaHusky);
       // Ejecución lectura huskylens
     }
 
-    banderaPrograma = false;
+    // digitalWrite(4, LOW);
   }
-
 }
