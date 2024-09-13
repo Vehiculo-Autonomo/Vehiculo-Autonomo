@@ -13,7 +13,7 @@
 #define pinMotor1 4  // Determina la dirección del motor
 #define pinMotor2 5  // Determina la dirección del motor
 #define enMotor 6    // Determina la fuerza del motor. Usa pwm 
-#define pinServo 8
+#define pinServo 9
 
 //PIDLoop controlMain(5, 0.0001, 0, false)  // Controlador PID para el motor principal. Los valores son sin carga
 PIDLoop controlServo(1, 0, 0, true);      // Controlador PID el servomotor (por el momento lo dejaremos como P)
@@ -40,6 +40,12 @@ HUSKYLENS huskylens;  // Crea un objeto con el cual reconoceremos a la husky
 
 // Variable timers 
 volatile bool banderaTimer = false;   // Al activarse la bandera se ejecutará una ronda de detección. Se activa con timer1
+
+volatile int counterHusky = 0;        // Se contará cada que el timer interrupta
+volatile int counterStop = 0;         //  ''
+
+const int comparadorHusky = 100 / 16; // La cantidad de cuentas hasta que se active la detección de la husky. Cada 100ms
+const int comparadorStop = 3000 / 16; // La cantidad de cuentas que dura una parada. Cada 3s
 
 // Banderas 
 bool banderaCross = false;    // Se activa cuando se detecta un paso peatonal, se desactiva después de la intersección. Se usa en trackCross()
@@ -70,71 +76,71 @@ void setup() {
   pinMode(pinMotor2, OUTPUT);
 
   // PWM servo
-  TCCR3A = 0;
-  TCCR3B = 0;
-  TCNT3  = 0;
-  OCR3A = 1249; // Preescaler 256 | frecuencia 50 hz
-  TCCR3B |= (1 << WGM10);
-  TCCR3B |= (1 << CS12);   
+  TCCR1A = 0;
+  TCCR1B = 0;
+  TCNT1  = 0;
+  OCR1A = 1249; // Preescaler 256 | frecuencia 50 hz
+  TCCR1B |= (1 << WGM10);
+  TCCR1B |= (1 << CS12);   
 
   // Timers
   cli();
 
     // Timer programa
-    TCCR1A = 0;
-    TCCR1B = 0;
-    TCNT1  = 0;
-    OCR1A = 6249; // Preescaler 256 | frecuencia 10 Hz
-    TCCR1B |= (1 << WGM12);
-    TCCR1B |= (1 << CS12);
-    TIMSK1 |= (1 << OCIE1A);
+    TCCR2A = 0;
+    TCCR2A |= (1 << WGM01);
+    TCCR2B = 0;
+    TCCR2B |= (1 << WGM01);
+    TCCR2B |= (1 << CS12) | (1 << CS10);
+    
+    OCR2A = 249; // Preescaler 1024 | frecuencia 16ms | 62.5Hz
+    TIMSK2 |= (1 << OCIE2A);
+    TCNT2  = 0;
 
-    // Timer parada
-    TCCR4A = 0;
-    TCCR4B = 0;
-    TCNT4  = 0;
-    OCR4A = 46874; // Preescaler 1024 | frecuencia 1/3 Hz
-    TCCR4B |= (1 << WGM12);
-    TCCR4B |= (1 << CS12) | (1 << CS10);
-    TIMSK4 |= (1 << OCIE4A);
-  
   sei();
-
 }
 
-ISR(TIMER1_COMPA_vect) {
+ISR(TIMER2_COMPA_vect) {
   banderaTimer = true;
 }
 
-ISR(TIMER4_COMPA_vect) {
-  switch (banderaApril) {
-    case 0:
-      break;
-    case 1:
-      moveForward();
-      break;
-    case 2:
-      turnRight();
-      break;
-    case 3:
-      turnLeft();
-      break;
-  }
-  banderaApril = 0;
-}
-
 void loop() {
-
-  // 10 Hz | 100 ms
+  
+  // 62.5 Hz | 16 ms
   if (banderaTimer) {
-    banderaTimer = false;
 
-    if (!banderaCross) {
-      trackLine();
-      trackCross();
+    banderaTimer = false;
+    counterHusky += 1;
+    counterStop += 1;
+
+    if (counterHusky > comparadorHusky) {
+      counterHusky = 0;
+
+      if (!banderaCross) {
+        trackLine();
+        trackCross();
+      }
+      updateVel();
     }
 
-    updateVel();
+    // if (counterStop > comparador){
+    //   counterStop = 0;
+    //   switch (banderaApril) {
+    //     case 0:
+    //       break;
+    //     case 1:
+    //       moveForward();
+    //       break;
+    //     case 2:
+    //       turnRight();
+    //       break;
+    //     case 3:
+    //       turnLeft();
+    //       break;
+    //   }
+    //   banderaApril = 0;
+    // }
+
   }
 }
 
@@ -155,7 +161,6 @@ void stopMove() {
   digitalWrite(pinMotor1, LOW);
   digitalWrite(pinMotor2, LOW);
   dvel = -10;
-  TCNT4 = 0;  // Reinicia el timer4
 }
 
 void turnRight() {
