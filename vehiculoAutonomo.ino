@@ -30,7 +30,11 @@ signed int dvel = 5;    // La cantidad que la velocidad aumenta o disminuye en c
 #define crossID 1   // Ids que diferencian los diferentes objetos aprendidos por la huskylens
 #define aprilID 2
 
+#define pinRx 10
+#define pinTx 11
+
 HUSKYLENS huskylens;  // Crea un objeto con el cual reconoceremos a la husky
+// SoftwareSerial huskySerial(pinRx, pinTx);
 
 // ----------- Interrupciones -------------
 
@@ -51,6 +55,8 @@ void setup() {
 
   // Huskylens
   Serial.begin(115200);                                         //Start serial communication
+  // huskySerial.begin(9600);
+
   Wire.begin();                                                 //Begin communication with the Huskeylens
   while (!huskylens.begin(Wire)) {
     Serial.println(F("Begin failed!"));
@@ -58,7 +64,6 @@ void setup() {
     Serial.println(F("2.Please recheck the connection."));
     delay(100);
   }
-  huskylens.writeAlgorithm(ALGORITHM_LINE_TRACKING);
 
   // Motores
   pinMode(pinMotor1, OUTPUT);
@@ -155,7 +160,7 @@ void stopMove() {
 
 void turnRight() {
   servo(45);
-  digitalWrite(pinMotor, HIGH);
+  // digitalWrite(pinMotor, HIGH);
   // AGREGAR tiempo 
   servo(0);
   banderaCross = false;
@@ -163,7 +168,7 @@ void turnRight() {
 
 void turnLeft() {
   servo(-45);
-  digitalWrite(pinMotor, HIGH);
+  // digitalWrite(pinMotor, HIGH);
   // AGREGAR tiempo 
   servo(0);
   banderaCross = false;
@@ -177,8 +182,8 @@ void servo(int angle) {
 void updateVel() {
   // Actualiza la velocidad del motor main y lo manda al pin enMotor
   velocidad += dvel;
-  velocidad > 255 ? velocidad = 255;
-  velocidad < velMin ? velocidad = 0;
+  velocidad > 255 ? velocidad = 255 : false;
+  velocidad < velMin ? velocidad = 0 : false;
   analogWrite(enMotor, velocidad);
 }
 
@@ -192,13 +197,14 @@ void trackLine() {
 
   huskylens.writeAlgorithm(ALGORITHM_LINE_TRACKING);
 
-  if (huskylens.requestArrows()) {
+  if (huskylens.request(1) && huskylens.available()) {
   
     HUSKYLENSResult result = huskylens.read();
 
     int32_t error;
     float angle = (180 / PI) * atan(((float)result.xTarget - (float)result.xOrigin) / ((float)result.yOrigin - (float)result.yTarget));
 
+    Serial.println(angle);
     //error = (int32_t)angle - (int32_t)160;
     error = (int32_t)angle;
     controlServo.update(error);
@@ -207,13 +213,16 @@ void trackLine() {
     angle_pid = controlServo.m_command;
     servo(angle_pid);
   }
+  else {
+    Serial.println("No Arrow");   // Temporal
+  }
 }
 
 void trackCross() {
 
   huskylens.writeAlgorithm(ALGORITHM_OBJECT_TRACKING);
 
-  if (huskylens.request(crossID)) {
+  if (huskylens.request(crossID) && huskylens.available()) {
   
     HUSKYLENSResult result = huskylens.get(crossID);
 
