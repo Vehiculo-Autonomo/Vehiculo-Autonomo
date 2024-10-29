@@ -1,6 +1,7 @@
 #include "HUSKYLENS.h"
 #include "SoftwareSerial.h"
 #include "PIDLoop.h"
+#include <Servo.h>
 
 /*
 -------------------------------------------------
@@ -10,20 +11,28 @@
 
 // ------------- Motores ---------------
 
+// Motor Principal
 #define pinMotor1 4  // Determina la dirección del motor
 #define pinMotor2 5  // Determina la dirección del motor
 #define enMotor 6    // Determina la fuerza del motor. Usa pwm 
-#define pinServo 9
 
 //PIDLoop controlMain(5, 0.0001, 0, false)  // Controlador PID para el motor principal. Los valores son sin carga
-PIDLoop controlServo(1, 0, 0, true);      // Controlador PID el servomotor (por el momento lo dejaremos como P)
-
-int angle_pid = 0;      // El ángulo de la línea de seguimiento. Se usa en trackLine()
 
 #define velMin 50       // La velocidad mínima que se necesita para tener suficiente torque inicial
 
 int velocidad = velMin; // Un valor entre 0-255 que se manda como pwm al puente H
 signed int dvel = 5;    // La cantidad que la velocidad aumenta o disminuye en cada paso
+
+// Servo
+#define pinNicla1 A2
+#define pinServo 10
+
+Servo servo;
+PIDLoop controlServo(1, 0, 0, true);      // Controlador PID el servomotor (por el momento lo dejaremos como P)
+
+int angle = 0;      // El ángulo al que se encuentra el vehiculo, se recibe de la nicla
+
+// int angle_pid = 0;      // El ángulo de la línea de seguimiento. Se usa en trackLine()
 
 // ------------ HUSKYLENS ----------------
 
@@ -51,6 +60,7 @@ const int comparadorStop = 3000 / 16; // La cantidad de cuentas que dura una par
 bool banderaCross = false;    // Se activa cuando se detecta un paso peatonal, se desactiva después de la intersección. Se usa en trackCross()
 int banderaApril = 0;         // Su valor depende de que tag sea leída. Afectará la decisión de movimiento despues de un paso peatonal. Su valor se determina en trackApril() y se usa en timer4
 
+
 /*
 -------------------------------------------------
              SETUP E INTERRUPCIONES
@@ -64,25 +74,20 @@ void setup() {
   // huskySerial.begin(9600);
 
   Wire.begin();                                                 //Begin communication with the Huskeylens
+
   while (!huskylens.begin(Wire)) {
     Serial.println(F("Begin failed!"));
     Serial.println(F("1.Please recheck the \"Protocol Type\" in HUSKYLENS (General Settings>>Protol Type>>I2C)"));
     Serial.println(F("2.Please recheck the connection."));
     delay(100);
   }
+  Serial.println("Conectado");
 
   // Motores
   pinMode(pinMotor1, OUTPUT);
   pinMode(pinMotor2, OUTPUT);
-
-  // PWM servo
-  TCCR1A = 0;
-  TCCR1B = 0;
-  TCNT1  = 0;
-  OCR1A = 1249; // Preescaler 256 | frecuencia 50 hz
-  TCCR1B |= (1 << WGM10);
-  TCCR1B |= (1 << CS12);   
-
+  servo.attach(pinServo);
+ 
   // Timers
   cli();
 
@@ -112,15 +117,17 @@ void loop() {
     banderaTimer = false;
     counterHusky += 1;
     counterStop += 1;
-
+    
     if (counterHusky > comparadorHusky) {
       counterHusky = 0;
 
       if (!banderaCross) {
-        trackLine();
-        trackCross();
+        // trackLine();
+        // trackCross();
+        false;
       }
-      updateVel();
+
+      // updateVel();
     }
 
     // if (counterStop > comparador){
@@ -164,24 +171,19 @@ void stopMove() {
 }
 
 void turnRight() {
-  servo(45);
+  servo.write(70);
   // digitalWrite(pinMotor, HIGH);
   // AGREGAR tiempo 
-  servo(0);
+  // servo(0);
   banderaCross = false;
 }
 
 void turnLeft() {
-  servo(-45);
+  servo.write(110);
   // digitalWrite(pinMotor, HIGH);
   // AGREGAR tiempo 
-  servo(0);
+  // servo(0);
   banderaCross = false;
-}
-
-void servo(int angle) {
-  // Calcula el duty cicle dependiendo de la entrada angle y manda el pwm
-  analogWrite(pinServo, (int)map(angle,-90,90,12,26));
 }
 
 void updateVel() {
@@ -200,27 +202,15 @@ void updateVel() {
 
 void trackLine() {
 
-  huskylens.writeAlgorithm(ALGORITHM_LINE_TRACKING);
+  angle = analogRead(pinNicla1);
+  angle = angle * (5/1023) * (360/3.3);
 
-  if (huskylens.request(1) && huskylens.available()) {
+  int32_t error;
+  error = (int32_t)angle - (int32_t)90;
+  controlServo.update(error);
+
+  // servo.write(controlServo.m_command);
   
-    HUSKYLENSResult result = huskylens.read();
-
-    int32_t error;
-    float angle = (180 / PI) * atan(((float)result.xTarget - (float)result.xOrigin) / ((float)result.yOrigin - (float)result.yTarget));
-
-    Serial.println(angle);
-    //error = (int32_t)angle - (int32_t)160;
-    error = (int32_t)angle;
-    controlServo.update(error);
-
-    //Serial.println(angle);
-    angle_pid = controlServo.m_command;
-    servo(angle_pid);
-  }
-  else {
-    Serial.println("No Arrow");   // Temporal
-  }
 }
 
 void trackCross() {
@@ -249,11 +239,26 @@ void trackCross() {
 void trackApril() {
   
   huskylens.writeAlgorithm(ALGORITHM_TAG_RECOGNITION);
-  HUSKYLENSResult result = huskylens.read();
 
-  // AGREGAR condición por si detecta más de una tag
-  banderaApril = result.ID;
-  // AGREGAR loop por si le toma tiempo leer la tag
-  // AGREAGAR condición de si no encuentra tag sea el valor de forward
+  if (huskylens.request() && huskylens.available()) {
+    HUSKYLENSResult result = huskylens.read();
+    printResult(result);
+    // AGREGAR condición por si detecta más de una tag
+    banderaApril = result.ID;
+    // AGREGAR loop por si le toma tiempo leer la tag
+    // AGREAGAR condición de si no encuentra tag sea el valor de forward
+  }
   
+}
+
+void printResult(HUSKYLENSResult result){
+    if (result.command == COMMAND_RETURN_BLOCK){
+   Serial.println(String() + F("Block:xCenter=") + result.xCenter + F(",yCenter=") + result.yCenter + F(",width=") + result.width + F(",height=") + result.height + F(",ID=") + result.ID);
+    }
+    else if (result.command == COMMAND_RETURN_ARROW){
+        Serial.println(String() + F("Arrow:xOrigin=") + result.xOrigin + F(",yOrigin=") + result.yOrigin + F(",xTarget=") + result.xTarget + F(",yTarget=") + result.yTarget + F(",ID=") + result.ID);
+    }
+    else{
+        Serial.println("Object unknown!");
+    }
 }
