@@ -20,8 +20,8 @@
 
 #define velMin 50       // La velocidad mínima que se necesita para tener suficiente torque inicial
 
-int velocidad = velMin; // Un valor entre 0-255 que se manda como pwm al puente H
-signed int dvel = 5;    // La cantidad que la velocidad aumenta o disminuye en cada paso
+int velocidad = 0;      // Un valor entre 0-255 que se manda como pwm al puente H
+signed int dvel = 0;    // La cantidad que la velocidad aumenta o disminuye en cada paso
 
 // Servo
 #define pinNicla1 A2
@@ -30,20 +30,20 @@ signed int dvel = 5;    // La cantidad que la velocidad aumenta o disminuye en c
 Servo servo;
 PIDLoop controlServo(1, 0, 0, true);      // Controlador PID el servomotor (por el momento lo dejaremos como P)
 
-int angle = 0;      // El ángulo al que se encuentra el vehiculo, se recibe de la nicla
+#define anguloMax 110
+#define anguloMin 70
 
-// int angle_pid = 0;      // El ángulo de la línea de seguimiento. Se usa en trackLine()
+int angulo = 90;      // El ángulo al que se encuentra el vehiculo, se recibe de la nicla
+signed int dang = 0;
+
+// int angulo_pid = 0;      // El ángulo de la línea de seguimiento. Se usa en trackLine()
 
 // ------------ HUSKYLENS ----------------
 
 #define crossID 1   // Ids que diferencian los diferentes objetos aprendidos por la huskylens
 #define aprilID 2
 
-#define pinRx 10
-#define pinTx 11
-
 HUSKYLENS huskylens;  // Crea un objeto con el cual reconoceremos a la husky
-// SoftwareSerial huskySerial(pinRx, pinTx);
 
 // ----------- Interrupciones -------------
 
@@ -71,7 +71,6 @@ void setup() {
 
   // Huskylens
   Serial.begin(115200);                                         //Start serial communication
-  // huskySerial.begin(9600);
 
   Wire.begin();                                                 //Begin communication with the Huskeylens
 
@@ -128,6 +127,19 @@ void loop() {
       }
 
       // updateVel();
+      // updateAng();
+      
+      // RUTINA DE PRUEBA
+
+      // if (velocidad == 255) {
+      //   dang = 1;
+      // }
+      // if (angulo == 110) {
+      //   dang = -1;
+      // }
+      // if (angulo == 70) {
+      //   dang = 1
+      // }
     }
 
     // if (counterStop > comparador){
@@ -157,6 +169,21 @@ void loop() {
 -------------------------------------------------
 */
 
+void updateVel() {
+  // Actualiza la velocidad del motor main y lo manda al pin enMotor
+  velocidad += dvel;
+  velocidad > 255 ? velocidad = 255 : false;
+  velocidad < velMin ? velocidad = 0 : false;
+  analogWrite(enMotor, velocidad);
+}
+
+void updateAng() {
+  angulo += dang;
+  angulo > anguloMax ? angulo = anguloMax : false;
+  angulo < anguloMin ? angulo = anguloMin : false;
+  servo.write(angulo);
+}
+
 void moveForward() {
   digitalWrite(pinMotor1, HIGH);
   digitalWrite(pinMotor2, LOW);
@@ -171,7 +198,7 @@ void stopMove() {
 }
 
 void turnRight() {
-  servo.write(70);
+  servo.write(anguloMin);
   // digitalWrite(pinMotor, HIGH);
   // AGREGAR tiempo 
   // servo(0);
@@ -179,19 +206,11 @@ void turnRight() {
 }
 
 void turnLeft() {
-  servo.write(110);
+  servo.write(anguloMax);
   // digitalWrite(pinMotor, HIGH);
   // AGREGAR tiempo 
   // servo(0);
   banderaCross = false;
-}
-
-void updateVel() {
-  // Actualiza la velocidad del motor main y lo manda al pin enMotor
-  velocidad += dvel;
-  velocidad > 255 ? velocidad = 255 : false;
-  velocidad < velMin ? velocidad = 0 : false;
-  analogWrite(enMotor, velocidad);
 }
 
 /*
@@ -202,11 +221,11 @@ void updateVel() {
 
 void trackLine() {
 
-  angle = analogRead(pinNicla1);
-  angle = angle * (5/1023) * (360/3.3);
+  angulo = analogRead(pinNicla1);
+  angulo = angulo * (5/1023) * (360/3.3);
 
   int32_t error;
-  error = (int32_t)angle - (int32_t)90;
+  error = (int32_t)angulo - (int32_t)90;
   controlServo.update(error);
 
   // servo.write(controlServo.m_command);
@@ -230,7 +249,7 @@ void trackCross() {
       }
       else {
         banderaCross = false;
-        // AGREGAR tiempo para que pase el cross
+        // AGREGAR tiempo para que pase el crossg
       }
     }
   }
