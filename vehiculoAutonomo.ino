@@ -1,5 +1,4 @@
 #include "HUSKYLENS.h"
-#include "SoftwareSerial.h"
 #include "PIDLoop.h"
 #include <Servo.h>
 
@@ -39,11 +38,12 @@ signed int dang = 0;
 // int angulo_pid = 0;      // El ángulo de la línea de seguimiento. Se usa en trackLine()
 
 // ----------------- ENCODER --------------------
+
 #define pinEncoderA 2
 #define pinEncoderB 3
 
-short valorA = 0;
-short valorB = 0;  
+short valorEncoderA = 0;
+short valorEncoderB = 0;  
 signed long int encoderPosition = 0;
 
 // ---------------- HUSKYLENS --------------------
@@ -93,24 +93,12 @@ void setup() {
   // Motores
   pinMode(pinMotor1, OUTPUT);
   pinMode(pinMotor2, OUTPUT);
-<<<<<<< HEAD
   servo.attach(pinServo);
  
-=======
-
   // Encoder
   attachInterrupt(digitalPinToInterrupt(pinEncoderA), readEncoderA, CHANGE);
   attachInterrupt(digitalPinToInterrupt(pinEncoderB), readEncoderB, CHANGE);
 
-  // PWM servo
-  TCCR3A = 0;
-  TCCR3B = 0;
-  TCNT3  = 0;
-  OCR3A = 1249; // Preescaler 256 | frecuencia 50 hz
-  TCCR3B |= (1 << WGM10);
-  TCCR3B |= (1 << CS12);   
-
->>>>>>> testEncoder
   // Timers
   cli();
 
@@ -141,6 +129,7 @@ void loop() {
     counterHusky += 1;
     counterStop += 1;
     
+    // 100 ms
     if (counterHusky > comparadorHusky) {
       counterHusky = 0;
 
@@ -166,6 +155,7 @@ void loop() {
       // }
     }
 
+    // 3 seg
     // if (counterStop > comparador){
     //   counterStop = 0;
     //   switch (banderaApril) {
@@ -245,36 +235,36 @@ void turnLeft() {
 
 void readEncoderA() {
 
-  valorA = digitalRead(pinA);
+  valorEncoderA = digitalRead(pinEncoderA);
    
-  if (valorA == 1 && valorB == 1) {
+  if (valorEncoderA == 1 && valorEncoderB == 1) {
     encoderPosition++;
   }
-  else if (valorA == 1 && valorB == 0) {
+  else if (valorEncoderA == 1 && valorEncoderB == 0) {
     encoderPosition--;
   }
-  else if (valorA == 0 && valorB == 1) {
+  else if (valorEncoderA == 0 && valorEncoderB == 1) {
     encoderPosition--;
   }
-  else if (valorA == 0 && valorB == 0) {
+  else if (valorEncoderA == 0 && valorEncoderB == 0) {
     encoderPosition++;
   }
 }
 
 void readEncoderB() {
 
-  valorB = digitalRead(pinB);
+  valorEncoderB = digitalRead(pinEncoderB);
    
-  if (valorB == 1 && valorA == 0) {
+  if (valorEncoderB == 1 && valorEncoderA == 0) {
     encoderPosition++;
   }
-  else if (valorB == 1 && valorA == 1) {
+  else if (valorEncoderB == 1 && valorEncoderA == 1) {
     encoderPosition--;
   }
-  else if (valorB == 0 && valorA == 0) {
+  else if (valorEncoderB == 0 && valorEncoderA == 0) {
     encoderPosition--;
   }
-  else if (valorB == 0 && valorA == 1) {
+  else if (valorEncoderB == 0 && valorEncoderA == 1) {
     encoderPosition++;
   }
 }
