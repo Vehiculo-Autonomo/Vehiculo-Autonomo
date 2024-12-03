@@ -8,5 +8,6 @@ Un programa de arduino para controlar un vehículo autónomamente. Se usa la tar
 
 * [Arduino 2.3.2](https://www.arduino.cc/en/software)
 * [HUSKYLENS Arduino API](https://github.com/HuskyLens/HUSKYLENSArduino) - Una API de comunicación y control de la tarjeta HUSKYLENS con el lenguaje arduino.
+* [Nicla Vision](https://docs.arduino.cc/hardware/nicla-vision/) - Microcontrolador con camara integrada para procesamiento de imágenes.
 * [PIDLoop](https://github.com/charmedlabs/pixy2/tree/master/src/host/arduino/libraries/Pixy2) - Librería para cálculo de controlador PID.
 * [Servo](https://docs.arduino.cc/libraries/servo/) - Librería para control de servomotores.

@@ -11,8 +11,8 @@
 // ----------------- MOTORES --------------------
 
 // Motor Principal
-#define pinMotor1 4  // Determina la dirección del motor
-#define pinMotor2 5  // Determina la dirección del motor
+#define pinMotor1 5  // Determina la dirección del motor
+#define pinMotor2 4  // Determina la dirección del motor
 #define enMotor 6    // Determina la fuerza del motor. Usa pwm 
 
 //PIDLoop controlMain(5, 0.0001, 0, false)  // Controlador PID para el motor principal. Los valores son sin carga
@@ -29,13 +29,15 @@ signed int dvel = 0;    // La cantidad que la velocidad aumenta o disminuye en c
 Servo servo;
 PIDLoop controlServo(1, 0, 0, true);      // Controlador PID el servomotor (por el momento lo dejaremos como P)
 
-#define anguloMax 110
-#define anguloMin 70
+#define anguloMax 105
+#define anguloMed 84
+#define anguloMin 60
 
-int angulo = 90;      // El ángulo al que se encuentra el vehiculo, se recibe de la nicla
+int angulo = anguloMed;         // El ángulo al que se encuentra el vehiculo, se recibe de la nicla
 signed int dang = 0;
 
-// int angulo_pid = 0;      // El ángulo de la línea de seguimiento. Se usa en trackLine()
+double anguloPid = angulo;      // El ángulo de la línea de seguimiento. Se usa en trackLine()
+double anguloPidFil = anguloPid;
 
 // ----------------- ENCODER --------------------
 
@@ -62,11 +64,11 @@ volatile int counterHusky = 0;        // Se contará cada que el timer interrupt
 volatile int counterStop = 0;         //  ''
 
 const int comparadorHusky = 100 / 16; // La cantidad de cuentas hasta que se active la detección de la husky. Cada 100ms
-const int comparadorStop = 3000 / 16; // La cantidad de cuentas que dura una parada. Cada 3s
+const int comparadorStop = 1500 / 16; // La cantidad de cuentas que dura una parada. Cada 3s
 
 // Banderas 
 bool banderaCross = false;    // Se activa cuando se detecta un paso peatonal, se desactiva después de la intersección. Se usa en trackCross()
-int banderaApril = 0;         // Su valor depende de que tag sea leída. Afectará la decisión de movimiento despues de un paso peatonal. Su valor se determina en trackApril() y se usa en timer4
+signed int banderaApril = 0;  // Su valor depende de que tag sea leída. Afectará la decisión de movimiento despues de un paso peatonal. Su valor se determina en trackApril() y se usa en timer4
 
 
 /*
@@ -81,7 +83,6 @@ void setup() {
   Serial.begin(115200);                                         //Start serial communication
 
   Wire.begin();                                                 //Begin communication with the Huskeylens
-
   while (!huskylens.begin(Wire)) {
     Serial.println(F("Begin failed!"));
     Serial.println(F("1.Please recheck the \"Protocol Type\" in HUSKYLENS (General Settings>>Protol Type>>I2C)"));
@@ -114,6 +115,11 @@ void setup() {
     TCNT2  = 0;
 
   sei();
+
+  delay(1000);
+  stopMove();
+  moveForward();
+  servo.write(anguloMed);
 }
 
 ISR(TIMER2_COMPA_vect) {
@@ -138,41 +144,49 @@ void loop() {
         // trackCross();
         false;
       }
-
-      // updateVel();
-      // updateAng();
       
-      // RUTINA DE PRUEBA
-
-      // if (velocidad == 255) {
-      //   dang = 1;
-      // }
-      // if (angulo == 110) {
-      //   dang = -1;
-      // }
-      // if (angulo == 70) {
-      //   dang = 1
-      // }
+      updateVel();
+      // updateAng();
     }
 
-    // 3 seg
-    // if (counterStop > comparador){
+    // RUTINA DE PRUEBA
+    // if (counterStop > comparadorStop) {
     //   counterStop = 0;
-    //   switch (banderaApril) {
-    //     case 0:
-    //       break;
-    //     case 1:
-    //       moveForward();
-    //       break;
-    //     case 2:
-    //       turnRight();
-    //       break;
-    //     case 3:
-    //       turnLeft();
-    //       break;
+    // //   angulo = anguloMax;
+    //   if (angulo == 85){
+    //     angulo = anguloMax;
     //   }
-    //   banderaApril = 0;
+    //   else if (angulo == anguloMax) {
+    //     angulo = anguloMin;
+    //   }
+    //   else {
+    //     angulo = 85;
+    //   }
     // }
+
+    // 1.5 seg
+    if (counterStop > comparadorStop) {
+      counterStop = 0;
+      trackApril();
+      switch (banderaApril) {
+        case -1:
+          break;
+        case 1:
+          stopMove();
+        case 2:
+          stopMove();
+          break;
+        case 3:
+          turnRight();
+          break;
+        case 4:
+          turnLeft();
+          break;
+        case 5: 
+          moveForward();
+      }
+      banderaApril = -1;
+    }
 
   }
 }
@@ -212,19 +226,55 @@ void stopMove() {
 }
 
 void turnRight() {
-  servo.write(anguloMin);
-  // digitalWrite(pinMotor, HIGH);
-  // AGREGAR tiempo 
-  // servo(0);
+
+  stopMove();
+  delay(3000);
+
+  velocidad = 255;
+  digitalWrite(pinMotor1, HIGH);
+  digitalWrite(pinMotor2, LOW);
+  analogWrite(enMotor, velocidad);
+
+  while (angulo < anguloMax) {
+    angulo += 2;
+    servo.write(angulo);
+    delay(200);
+  }
+  delay(6800);
+  while (angulo > anguloMed) {
+    angulo -= 2;
+    servo.write(angulo);
+    delay(200);
+  }
+  angulo = anguloMed;
   banderaCross = false;
+
 }
 
 void turnLeft() {
-  servo.write(anguloMax);
-  // digitalWrite(pinMotor, HIGH);
-  // AGREGAR tiempo 
-  // servo(0);
+
+  stopMove();
+  delay(3000);
+
+  velocidad = 255;
+  digitalWrite(pinMotor1, HIGH);
+  digitalWrite(pinMotor2, LOW);
+  analogWrite(enMotor, velocidad);
+
+  while (angulo > anguloMin) {
+    angulo -= 2;
+    servo.write(angulo);
+    delay(200);
+  }
+  delay(6800);
+  while (angulo < anguloMed) {
+    angulo += 2;
+    servo.write(angulo);
+    delay(200);
+  }
+  angulo = anguloMed;
   banderaCross = false;
+
 }
 
 /*
@@ -277,14 +327,22 @@ void readEncoderB() {
 
 void trackLine() {
 
-  angulo = analogRead(pinNicla1);
-  angulo = angulo * (5/1023) * (360/3.3);
+  anguloPid = analogRead(pinNicla1);
+  Serial.println(anguloPid);
+  anguloPid = anguloPid * (double)(5.0/1023.0) * (double)(180.0/3.3);
+  // anguloPidFil = 0.01*anguloPid + (1-0.01)*anguloPidFil;
+  Serial.println(anguloPid);
 
   int32_t error;
-  error = (int32_t)angulo - (int32_t)90;
+  error = (int32_t)anguloPidFil - (int32_t)anguloMed;
   controlServo.update(error);
 
-  // servo.write(controlServo.m_command);
+  angulo = controlServo.m_command;
+  angulo > anguloMax ? angulo = anguloMax : false;
+  angulo < anguloMin ? angulo = anguloMin : false;
+
+  // Serial.println(angulo);
+  servo.write(angulo);
   
 }
 
@@ -316,10 +374,26 @@ void trackApril() {
   huskylens.writeAlgorithm(ALGORITHM_TAG_RECOGNITION);
 
   if (huskylens.request() && huskylens.available()) {
-    HUSKYLENSResult result = huskylens.read();
-    printResult(result);
+    
+    Serial.println(huskylens.available());
+    
+    int width = 0;
+    int id = 0;
+
+    for (int i=0; i < huskylens.available(); i++) {
+      HUSKYLENSResult result = huskylens.getBlock(i);
+      if (result.width > width){
+        width = result.width;
+        id = result.ID;
+      }
+    }
+    // printResult(result);
     // AGREGAR condición por si detecta más de una tag
-    banderaApril = result.ID;
+    banderaApril = id;
+    if (banderaApril != -1) {
+      velocidad = 0;
+      stopMove();
+    }
     // AGREGAR loop por si le toma tiempo leer la tag
     // AGREAGAR condición de si no encuentra tag sea el valor de forward
   }
